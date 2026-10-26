@@ -6,5 +6,9 @@
 .vs/
 *.user
 
+# Configuración de agentes y scripts locales
+.agents/
+push_to_github.bat
+
 # Nota: bin/AwakeWin.exe se conserva intencionalmente para permitir
 # la ejecución directa de 71 KB sin requerir entorno de compilación.
