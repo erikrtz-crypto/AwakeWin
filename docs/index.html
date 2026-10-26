@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AwakeWin ⚡ | Modo de fondo persistente, control de audio y streaming a 60 FPS para Windows</title>
+  <meta name="description" content="Tu equipo sigue trabajando aunque cierres tu dispositivo. Streaming remoto a 60 FPS con AnyDesk, silencio automático al bajar la pantalla y ejecución continua de agentes de IA. Solo ~71 KB sin dependencias.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23121214'/><path d='M18 4L7 17h7l-2 11 11-13h-7z' fill='%2310b981'/></svg>">
+  
+  <style>
+    /* Design Tokens: Windows Fluent / Dark Zinc Palette (Anti-AI-Slop) */
+    :root {
+      --bg-canvas: #09090b;
+      --bg-surface: #121214;
+      --bg-surface-elevated: #18181b;
+      --bg-surface-hover: #222226;
+      --border-subtle: #27272a;
+      --border-strong: #3f3f46;
+      --border-focus: #10b981;
+      
+      --text-primary: #f4f4f6;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+      --text-muted: #52525b;
+      
+      --accent-emerald: #10b981;
+      --accent-emerald-light: #34d399;
+      --accent-emerald-dark: #064e3b;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      
+      --font-stack: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      --font-mono: "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+      
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      
+      --shadow-ambient: 0 4px 24px -2px rgba(0, 0, 0, 0.45);
+      --shadow-elevated: 0 12px 32px -4px rgba(0, 0, 0, 0.65);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-stack);
+      line-height: 1.5;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: var(--accent-emerald-light);
+      text-decoration: none;
+      transition: color 120ms ease;
+    }
+    a:hover {
+      color: #6ee7b7;
+      text-decoration: underline;
+    }
+
+    /* Container Rhythm */
+    .container {
+      width: 100%;
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Top Navigation */
+    header.site-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+      background-color: rgba(9, 9, 11, 0.85);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .brand-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald-light);
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .nav-links a:hover {
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background-color 120ms ease, border-color 120ms ease, transform 60ms ease;
+    }
+    .btn:active {
+      transform: translateY(1px);
+    }
+    .btn-primary {
+      background-color: var(--accent-emerald);
+      color: #042f2e;
+    }
+    .btn-primary:hover {
+      background-color: var(--accent-emerald-light);
+      color: #022c22;
+      text-decoration: none;
+    }
+    .btn-secondary {
+      background-color: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border-color: var(--border-subtle);
+    }
+    .btn-secondary:hover {
+      background-color: var(--bg-surface-hover);
+      border-color: var(--border-strong);
+      text-decoration: none;
+    }
+
+    /* Hero Section */
+    section.hero {
+      padding: 64px 0 48px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 48px;
+      align-items: center;
+    }
+    @media (max-width: 920px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+    }
+    .hero-copy h1 {
+      font-size: clamp(2.2rem, 4.5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+    .hero-copy h1 span.highlight {
+      color: var(--accent-emerald-light);
+    }
+    .hero-lead {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .specs-pill-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 0.82rem;
+      color: var(--text-tertiary);
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 18px;
+    }
+    .specs-pill-bar span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .specs-pill-bar strong {
+      color: var(--text-secondary);
+    }
+
+    /* App Interactive Mockup (Windows 11 Fluent) */
+    .app-window-frame {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-elevated);
+      overflow: hidden;
+      width: 100%;
+      max-width: 440px;
+      margin: 0 auto;
+    }
+    .app-titlebar {
+      height: 38px;
+      background: #101013;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      user-select: none;
+    }
+    .titlebar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .titlebar-controls {
+      display: flex;
+      gap: 6px;
+    }
+    .control-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #27272a;
+    }
+    .control-dot.close:hover { background: #ef4444; }
+    
+    .app-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .app-header-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .app-header-block h2 {
+      font-size: 1.15rem;
+      color: var(--text-primary);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .app-header-block p {
+      font-size: 0.82rem;
+      color: var(--text-tertiary);
+    }
+
+    /* Interactive Hero Toggle Card */
+    .hero-toggle-card {
+      background: #064e3b;
+      border: 1px solid #059669;
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 140ms ease, border-color 140ms ease;
+    }
+    .hero-toggle-card.inactive {
+      background: #18181b;
+      border-color: var(--border-subtle);
+    }
+    .hero-toggle-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-led {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent-emerald-light);
+      box-shadow: 0 0 10px var(--accent-emerald);
+      flex-shrink: 0;
+    }
+    .hero-toggle-card.inactive .status-led {
+      background: #71717a;
+      box-shadow: none;
+    }
+    .hero-toggle-titles strong {
+      display: block;
+      font-size: 0.95rem;
+      color: #ecfdf5;
+      font-weight: 700;
+    }
+    .hero-toggle-card.inactive .hero-toggle-titles strong {
+      color: var(--text-secondary);
+    }
+    .hero-toggle-titles span {
+      font-size: 0.78rem;
+      color: #a7f3d0;
+    }
+    .hero-toggle-card.inactive .hero-toggle-titles span {
+      color: var(--text-tertiary);
+    }
+
+    /* Switch Component */
+    .ui-switch {
+      width: 48px;
+      height: 24px;
+      background: var(--accent-emerald);
+      border-radius: 999px;
+      position: relative;
+      cursor: pointer;
+      transition: background-color 140ms ease;
+      flex-shrink: 0;
+    }
+    .ui-switch-knob {
+      width: 18px;
+      height: 18px;
+      background: #ffffff;
+      border-radius: 50%;
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      transition: transform 140ms ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .hero-toggle-card.inactive .ui-switch {
+      background: #3f3f46;
+    }
+    .hero-toggle-card.inactive .ui-switch-knob {
+      transform: translateX(-24px);
+    }
+
+    /* Setting Card Rows */
+    .mock-setting-row {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .mock-setting-info strong {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .mock-setting-info span {
+      font-size: 0.74rem;
+      color: var(--text-tertiary);
+    }
+    .mock-mini-switch {
+      width: 40px;
+      height: 20px;
+      background: var(--accent-emerald);
+      border-radius: 999px;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .mock-mini-switch::after {
+      content: "";
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      position: absolute;
+      top: 3px;
+      right: 3px;
+    }
+    .mock-dropdown-btn {
+      background: #27272a;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 0.76rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    /* Quick Action & Footer Pill */
+    .mock-action-btn {
+      background: #27272a;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: var(--radius-md);
+      text-align: center;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .mock-action-btn:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-primary);
+    }
+    .mock-footer-pill {
+      background: #141416;
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: 0.74rem;
+      color: var(--accent-emerald-light);
+      font-weight: 500;
+    }
+    .mock-footer-pill.inactive {
+      color: var(--text-tertiary);
+    }
+
+    /* Comparison Table Section */
+    section.comparison {
+      padding: 72px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      background-color: var(--bg-surface);
+    }
+    .section-head {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 48px;
+    }
+    .section-head h2 {
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .section-head p {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      background: var(--bg-canvas);
+    }
+    table.compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+    table.compare-table th, 
+    table.compare-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    table.compare-table th {
+      background: #121215;
+      font-weight: 700;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    table.compare-table th.col-highlight {
+      background: rgba(16, 185, 129, 0.08);
+      color: var(--accent-emerald-light);
+      border-bottom: 2px solid var(--accent-emerald);
+    }
+    table.compare-table td.col-highlight {
+      background: rgba(16, 185, 129, 0.03);
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .badge-bad {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #f87171;
+      font-size: 0.86rem;
+    }
+    .badge-good {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent-emerald-light);
+      font-size: 0.86rem;
+    }
+
+    /* Core Features Grid (Intentional, Content-driven 2-column) */
+    section.features {
+      padding: 72px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .feature-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: border-color 140ms ease;
+    }
+    .feature-card:hover {
+      border-color: var(--border-strong);
+    }
+    .feature-icon-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: var(--accent-emerald-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+    }
+    .feature-card h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .feature-card p {
+      color: var(--text-secondary);
+      font-size: 0.94rem;
+      line-height: 1.6;
+    }
+    .feature-code-pill {
+      align-self: flex-start;
+      background: #1d1d21;
+      border: 1px solid var(--border-subtle);
+      color: var(--accent-emerald-light);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      margin-top: 6px;
+    }
+
+    /* Setup & Laptop Guide Section */
+    section.setup-guide {
+      padding: 72px 0;
+      border-bottom: 1px solid var(--border-subtle);
+      background: #0c0c0e;
+    }
+    .setup-steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .setup-step-item {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      color: #022c22;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.95rem;
+    }
+    .step-content h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text-primary);
+    }
+    .step-content p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    /* Download & Quick Start */
+    section.download-cta {
+      padding: 80px 0;
+      text-align: center;
+    }
+    .cta-card {
+      background: linear-gradient(180deg, #18181c 0%, #121215 100%);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-xl);
+      padding: 48px 32px;
+      max-width: 820px;
+      margin: 0 auto;
+      box-shadow: var(--shadow-ambient);
+    }
+    .cta-card h2 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+    .cta-card p {
+      font-size: 1.05rem;
+      color: var(--text-secondary);
+      max-width: 580px;
+      margin: 0 auto 32px;
+    }
+    .cta-actions {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Footer & Attribution */
+    footer.site-footer {
+      border-top: 1px solid var(--border-subtle);
+      background: #060608;
+      padding: 40px 0;
+      font-size: 0.88rem;
+      color: var(--text-tertiary);
+    }
+    .footer-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+    }
+
+    /* Keyboard Badge */
+    kbd.keycap {
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--text-primary);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    /* Blackout Simulation Modal */
+    #blackout-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: 9999;
+      display: none;
+      cursor: none;
+      align-items: center;
+      justify-content: center;
+      color: #333333;
+      font-size: 0.9rem;
+      user-select: none;
+    }
+    #blackout-overlay.active {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Fullscreen Blackout Demo Layer -->
+  <div id="blackout-overlay">
+    <span>(Pantalla en negro puro • Presiona cualquier tecla para despertar)</span>
+  </div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#" class="brand">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="8" fill="#18181b" stroke="#27272a"/>
+          <path d="M18 4L7 17h7l-2 11 11-13h-7z" fill="#10b981"/>
+        </svg>
+        <span>AwakeWin</span>
+        <span class="brand-badge">v1.3.2</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#comparativa">Comparativa</a></li>
+        <li><a href="#funciones">Funciones</a></li>
+        <li><a href="#configuracion">Configuración</a></li>
+        <li>
+          <a href="https://github.com/erikrtz-crypto/AwakeWin" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 6px 14px; font-size: 0.85rem;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            GitHub
+          </a>
+        </li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <h1>Tu equipo sigue trabajando <span class="highlight">aunque cierres tu dispositivo.</span></h1>
+        <p class="hero-lead">
+          Streaming remoto a 60 FPS con AnyDesk o Sunshine, silencio automático al bajar la pantalla y ejecución ininterrumpida de modelos locales de IA, descargas y renders en Windows.
+        </p>
+
+        <div class="hero-actions">
+          <a href="https://github.com/erikrtz-crypto/AwakeWin/releases/latest" class="btn btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Descargar AwakeWin.exe (~71 KB)
+          </a>
+          <button id="btn-test-blackout" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            Probar Blackout (<kbd class="keycap">Ctrl+Alt+B</kbd>)
+          </button>
+        </div>
+
+        <div class="specs-pill-bar">
+          <span>📦 <strong>~71 KB</strong> Ejecutable nativo</span>
+          <span>⚡ <strong>0 dependencias</strong> (Sin runtimes pesados)</span>
+          <span>🖥️ <strong>60 FPS</strong> DXGI Remoto</span>
+          <span>🛡️ <strong>MIT</strong> Código abierto</span>
+        </div>
+      </div>
+
+      <!-- Live Interactive Window Component -->
+      <div class="hero-mockup">
+        <div class="app-window-frame">
+          <div class="app-titlebar">
+            <div class="titlebar-left">
+              <svg width="14" height="14" viewBox="0 0 32 32" fill="#10b981">
+                <path d="M18 4L7 17h7l-2 11 11-13h-7z"/>
+              </svg>
+              <span>AwakeWin v1.3.2</span>
+            </div>
+            <div class="titlebar-controls">
+              <div class="control-dot"></div>
+              <div class="control-dot"></div>
+              <div class="control-dot close"></div>
+            </div>
+          </div>
+
+          <div class="app-body">
+            <div class="app-header-block">
+              <h2>AwakeWin</h2>
+              <p>Tu equipo sigue trabajando aunque cierres tu dispositivo</p>
+            </div>
+
+            <!-- Master Toggle (Clickable in Demo) -->
+            <div class="hero-toggle-card" id="mock-master-card" title="Haz clic para probar el interruptor">
+              <div class="hero-toggle-meta">
+                <div class="status-led"></div>
+                <div class="hero-toggle-titles">
+                  <strong id="mock-master-title">MODO AWAKEWIN ACTIVADO</strong>
+                  <span id="mock-master-sub">Equipo siempre activo • No suspender</span>
+                </div>
+              </div>
+              <div class="ui-switch">
+                <div class="ui-switch-knob"></div>
+              </div>
+            </div>
+
+            <!-- Settings Rows -->
+            <div class="mock-setting-row">
+              <div class="mock-setting-info">
+                <strong>Silencio al cerrar</strong>
+                <span>Pausar música y mutear altavoces</span>
+              </div>
+              <div class="mock-mini-switch"></div>
+            </div>
+
+            <div class="mock-setting-row">
+              <div class="mock-setting-info">
+                <strong>Cuidado de Batería</strong>
+                <span>Pausar AwakeWin si la carga es &lt; 20%</span>
+              </div>
+              <div class="mock-mini-switch"></div>
+            </div>
+
+            <div class="mock-setting-row">
+              <div class="mock-setting-info">
+                <strong>Mochila Segura</strong>
+                <span>Protección térmica ante sobrecalentamiento</span>
+              </div>
+              <div class="mock-mini-switch"></div>
+            </div>
+
+            <div class="mock-setting-row">
+              <div class="mock-setting-info">
+                <strong>Temporizador de reposo</strong>
+                <span>Suspender automáticamente tras un lapso</span>
+              </div>
+              <div class="mock-dropdown-btn">Siempre activo ▾</div>
+            </div>
+
+            <div class="mock-action-btn" id="mock-blackout-btn">
+              <span>🌙 Ocultar pantalla ahora</span>
+              <kbd class="keycap">Ctrl + Alt + B</kbd>
+            </div>
+
+            <div class="mock-footer-pill" id="mock-footer-pill">
+              <span>🟢 Activo</span>
+              <span>•</span>
+              <span>Batería: 95% ⚡</span>
+              <span>•</span>
+              <span>🔊 Audio silenciado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Problem vs Solution Comparison -->
+  <section class="comparison" id="comparativa">
+    <div class="container">
+      <div class="section-head">
+        <h2>¿Por qué las soluciones tradicionales fallan?</h2>
+        <p>Windows nativo y herramientas antiguas como Caffeine o PowerToys no resuelven la desconexión gráfica ni el control multimedia.</p>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Escenario de Uso</th>
+              <th>Windows por Defecto</th>
+              <th>PowerToys / Caffeine</th>
+              <th class="col-highlight">AwakeWin</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Cerrar la tapa de la laptop</strong></td>
+              <td><span class="badge-bad">❌ Audio sigue sonando a todo volumen</span></td>
+              <td><span class="badge-bad">❌ No detecta la bisagra ni el audio</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Pausa multimedia y silencia al instante</span></td>
+            </tr>
+            <tr>
+              <td><strong>Streaming Remoto (AnyDesk / Sunshine)</strong></td>
+              <td><span class="badge-bad">❌ GPU desconecta monitor; pantalla negra o congelada</span></td>
+              <td><span class="badge-bad">❌ Señal gráfica perdida; lag y efecto cámara rápida</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Mantiene DirectX a 60 FPS fijos sin pantalla encendida</span></td>
+            </tr>
+            <tr>
+              <td><strong>Modelos Locales de IA (Ollama / LM Studio)</strong></td>
+              <td><span class="badge-bad">❌ Modern Standby congela hilos y reduce la potencia</span></td>
+              <td><span class="badge-bad">⚠️ Solo previene suspensión básica; no evita throttling</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Desactiva Power Throttling; 100% potencia de CPU/GPU</span></td>
+            </tr>
+            <tr>
+              <td><strong>Seguridad en Mochila o Funda</strong></td>
+              <td><span class="badge-bad">❌ Riesgo crítico de sobrecalentamiento</span></td>
+              <td><span class="badge-bad">❌ Sin guardia térmica ni sensor de batería</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Mochila Segura: suspende si detecta calor anormal</span></td>
+            </tr>
+            <tr>
+              <td><strong>Falsa Suspensión Instantánea (Blackout)</strong></td>
+              <td><span class="badge-bad">❌ Requiere apagar monitor por DPMS (rompe AnyDesk)</span></td>
+              <td><span class="badge-bad">❌ Inexistente</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Atajo <kbd class="keycap">Ctrl+Alt+B</kbd> invisible para AnyDesk</span></td>
+            </tr>
+            <tr>
+              <td><strong>Huella en el Sistema y Runtimes</strong></td>
+              <td>N/A</td>
+              <td><span class="badge-bad">⚠️ +200 MB de WebView2 o paquetes externos</span></td>
+              <td class="col-highlight"><span class="badge-good">✔️ Solo ~71 KB; 0 dependencias externas</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Features -->
+  <section class="features" id="funciones">
+    <div class="container">
+      <div class="section-head">
+        <h2>Diseñado para el trabajo pesado y la portabilidad</h2>
+        <p>Cada línea de código fue optimizada para responder en 0 milisegundos sin consumir batería en reposo.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-badge">🤖</div>
+          <h3>Modelos de IA y renders sin interrupciones</h3>
+          <p>
+            Mantiene tus agentes autónomos, modelos locales de lenguaje (Ollama, LM Studio, vLLM), descargas pesadas y compilaciones de código al 100% de velocidad. Evita que Windows degrade la frecuencia del procesador mediante <span class="feature-code-pill">ES_SYSTEM_REQUIRED</span>.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🖥️</div>
+          <h3>Streaming Remoto a 60 FPS estables</h3>
+          <p>
+            Permite controlar tu equipo mediante AnyDesk, Parsec o Sunshine con la pantalla física apagada o la laptop completamente guardada. No hay caídas de fotogramas, desincronización de DirectX ni el molesto efecto de "cámara rápida".
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🎵</div>
+          <h3>Pausa y silencio multimedia automático</h3>
+          <p>
+            Al bajar la tapa de tu portátil, detecta el evento de hardware (<span class="feature-code-pill">GUID_LIDSWITCH_STATE_CHANGE</span>), pausa Spotify o videos y silencia el volumen maestro. Al abrirla, restaura el nivel exacto de audio y continúa donde estabas.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🌙</div>
+          <h3>Modo Blackout (Privacidad Instantánea)</h3>
+          <p>
+            Presiona <kbd class="keycap">Ctrl + Alt + B</kbd> para cubrir el monitor en negro absoluto (<span class="feature-code-pill">#000000</span>). La capa está excluida de capturas remotas (<span class="feature-code-pill">WDA_EXCLUDEFROMCAPTURE</span>): tú ves tu escritorio desde AnyDesk, pero la pantalla física permanece a oscuras.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">🎒</div>
+          <h3>Mochila Segura (Protección Térmica)</h3>
+          <p>
+            Si la laptop está cerrada en la mochila funcionando en batería, un algoritmo centinela monitorea la carga de la CPU. Si un proceso descontrolado supera el 80% sostenido, suspende el equipo automáticamente para evitar sobrecalentamiento.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-badge">⏱️</div>
+          <h3>Temporizador de Reposo Personalizado</h3>
+          <p>
+            Configura el apagado automático en 30 min, 1 hora, 2 horas o define exactamente horas y minutos mediante el selector integrado. Cuenta regresiva visible en tiempo real en la bandeja del sistema.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Laptop Configuration Steps -->
+  <section class="setup-guide" id="configuracion">
+    <div class="container">
+      <div class="section-head">
+        <h2>Configuración en 30 segundos</h2>
+        <p>Optimiza Windows para aprovechar la tapa cerrada sin que el sistema bloquee tu sesión remota.</p>
+      </div>
+
+      <div class="setup-steps-list">
+        <div class="setup-step-item">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Abre AwakeWin</h4>
+            <p>Haz doble clic en <code>AwakeWin.exe</code>. La ventana se abrirá en la esquina inferior derecha junto al reloj del sistema.</p>
+          </div>
+        </div>
+
+        <div class="setup-step-item">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Haz clic en "⚙️ Configurar acción de la tapa en Windows"</h4>
+            <p>La app abrirá directamente el Panel de Control de Opciones de Energía.</p>
+          </div>
+        </div>
+
+        <div class="setup-step-item">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>En "Al cerrar la tapa", selecciona "No hacer nada"</h4>
+            <p>Tanto para batería como para corriente alterna. Con esto, al cerrar la tapa tu laptop continuará accesible al 100% por AnyDesk y tu música se pausará sola.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download & Call to Action -->
+  <section class="download-cta">
+    <div class="container">
+      <div class="cta-card">
+        <h2>Comienza a usar AwakeWin hoy</h2>
+        <p>
+          Sin instaladores invasivos ni publicidad. Un único binario portable de 71 KB listo para colocar en cualquier carpeta o iniciar con Windows.
+        </p>
+
+        <div class="cta-actions">
+          <a href="https://github.com/erikrtz-crypto/AwakeWin/releases/latest" class="btn btn-primary" style="padding: 14px 28px; font-size: 1rem;">
+            Descargar AwakeWin v1.3.2 (.exe)
+          </a>
+          <a href="https://github.com/erikrtz-crypto/AwakeWin" target="_blank" rel="noopener noreferrer" class="btn btn-secondary" style="padding: 14px 28px; font-size: 1rem;">
+            Explorar Código en GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-content">
+      <div class="footer-attribution">
+        <p>
+          <strong>AwakeWin</strong> es desarrollado por <a href="https://github.com/erikrtz-crypto" target="_blank" rel="noopener noreferrer">erikrtz-crypto</a>.
+        </p>
+        <p style="margin-top: 4px; font-size: 0.8rem;">
+          Inspirado y basado en la idea original de <a href="https://alex-louder.github.io/Awake/" target="_blank" rel="noopener noreferrer">Awake para iOS</a> de <strong>Alex Louder</strong>.
+        </p>
+      </div>
+
+      <ul class="footer-links">
+        <li><a href="https://github.com/erikrtz-crypto/AwakeWin/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Licencia MIT</a></li>
+        <li><a href="https://github.com/erikrtz-crypto/AwakeWin/blob/main/README.md" target="_blank" rel="noopener noreferrer">Documentación</a></li>
+        <li><a href="https://github.com/erikrtz-crypto/AwakeWin/issues" target="_blank" rel="noopener noreferrer">Reportar Problema</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <!-- Interactive Demo Logic -->
+  <script>
+    // Master Toggle Interactive Behavior in Mockup
+    const masterCard = document.getElementById('mock-master-card');
+    const masterTitle = document.getElementById('mock-master-title');
+    const masterSub = document.getElementById('mock-master-sub');
+    const footerPill = document.getElementById('mock-footer-pill');
+    let isActive = true;
+
+    masterCard.addEventListener('click', () => {
+      isActive = !isActive;
+      if (isActive) {
+        masterCard.classList.remove('inactive');
+        masterTitle.textContent = 'MODO AWAKEWIN ACTIVADO';
+        masterSub.textContent = 'Equipo siempre activo • No suspender';
+        footerPill.classList.remove('inactive');
+        footerPill.innerHTML = '<span>🟢 Activo</span><span>•</span><span>Batería: 95% ⚡</span><span>•</span><span>🔊 Audio silenciado</span>';
+      } else {
+        masterCard.classList.add('inactive');
+        masterTitle.textContent = 'EN PAUSA (SUSPENSIÓN NORMAL)';
+        masterSub.textContent = 'La laptop dormirá según tu configuración habitual';
+        footerPill.classList.add('inactive');
+        footerPill.innerHTML = '<span>⚪ En pausa</span><span>•</span><span>Batería: 95%</span><span>•</span><span>🔊 Sonido normal</span>';
+      }
+    });
+
+    // Blackout Overlay Demo
+    const blackoutOverlay = document.getElementById('blackout-overlay');
+    const testBlackoutBtn = document.getElementById('btn-test-blackout');
+    const mockBlackoutBtn = document.getElementById('mock-blackout-btn');
+
+    function triggerBlackout() {
+      blackoutOverlay.classList.add('active');
+    }
+    function dismissBlackout() {
+      blackoutOverlay.classList.remove('active');
+    }
+
+    testBlackoutBtn.addEventListener('click', triggerBlackout);
+    mockBlackoutBtn.addEventListener('click', triggerBlackout);
+
+    // Dismiss on any key or click
+    window.addEventListener('keydown', (e) => {
+      // Hotkey Ctrl + Alt + B
+      if (e.ctrlKey && e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        if (blackoutOverlay.classList.contains('active')) {
+          dismissBlackout();
+        } else {
+          triggerBlackout();
+        }
+        return;
+      }
+      if (blackoutOverlay.classList.contains('active')) {
+        dismissBlackout();
+      }
+    });
+
+    blackoutOverlay.addEventListener('click', dismissBlackout);
+  </script>
+</body>
+</html>
