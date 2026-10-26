@@ -1,0 +1,10 @@
+# Compilación y temporales
+*.obj
+*.pdb
+*.log
+*.tmp
+.vs/
+*.user
+
+# Nota: bin/AwakeWin.exe se conserva intencionalmente para permitir
+# la ejecución directa de 71 KB sin requerir entorno de compilación.
